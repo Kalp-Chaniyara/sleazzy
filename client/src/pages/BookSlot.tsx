@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { CLUBS, VENUES } from '../constants';
 import { apiRequest, type ApiClub, type ApiVenue } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
+import { toastError, toastSuccess } from '../lib/toast';
 import { EventType, ClubGroupType, User } from '../types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -80,6 +82,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [metaError, setMetaError] = useState<string | null>(null);
 
   const [warnings, setWarnings] = useState({
     timeline: '',
@@ -97,6 +100,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
 
   useEffect(() => {
     const fetchMeta = async () => {
+      setMetaError(null);
       try {
         const [clubsData, venuesData] = await Promise.all([
           apiRequest<ApiClub[]>('/api/clubs'),
@@ -106,6 +110,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
         setVenues(venuesData);
       } catch (error) {
         console.error('Failed to load clubs/venues:', error);
+        setMetaError(getErrorMessage(error, 'Failed to load clubs and venues. Please refresh the page.'));
       }
     };
 
@@ -263,8 +268,9 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
         } else {
           setWarnings(prev => ({ ...prev, conflict: '' }));
         }
-      } catch (error) {
-        console.error('Failed to check conflicts:', error);
+      } catch (err) {
+        console.error('Failed to check conflicts:', err);
+        setWarnings(prev => ({ ...prev, conflict: 'Could not verify conflicts. Please check your connection and try again.' }));
       }
     };
 
@@ -279,10 +285,9 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     e.preventDefault();
 
     if (warnings.timeline || warnings.conflict || warnings.hours) {
-      alert("Please resolve the warnings before submitting.");
+      toastError('Please resolve the warnings before submitting.');
       return;
     }
-
 
     try {
       const selectedClub = clubs.find(c => c.name === formData.clubName);
@@ -303,28 +308,29 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
         }
       });
 
-      // Redirect or show success
-      // navigate('/dashboard'); // Assuming react-router navigate is available, but for now just alert
-      alert("Booking submitted successfully!");
-      // window.location.href = '/'; 
-      // TODO: Show success message and redirect
+      toastSuccess('Booking request submitted successfully!');
     } catch (error) {
       console.error('Failed to submit booking:', error);
-      alert("Failed to submit booking request. Please try again.");
+      toastError(error, 'Failed to submit booking. Please try again.');
     }
   };
 
   const hasErrors = !!warnings.timeline || !!warnings.conflict || !!warnings.hours;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <motion.div 
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="max-w-3xl mx-auto space-y-6 w-full"
+    >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
-        <Card className="border border-border">
-          <CardHeader className="border-b border-border pb-6">
+        <Card className="rounded-xl overflow-hidden">
+          <CardHeader className="border-b border-borderSoft pb-6">
             <CardTitle className="text-2xl flex items-center gap-3 font-bold tracking-tight">
               <CalendarIcon className="text-primary" size={24} />
               Book a Venue Slot
@@ -333,11 +339,26 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
           </CardHeader>
 
           <CardContent className="p-6 sm:p-8">
+            {metaError && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle size={16} />
+                <AlertTitle>Unable to load form data</AlertTitle>
+                <AlertDescription className="mt-1">{metaError}</AlertDescription>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => window.location.reload()}
+                >
+                  Refresh page
+                </Button>
+              </Alert>
+            )}
             <form onSubmit={handleSubmit} className="space-y-6">
 
               {/* Section 1: Event Info */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Event Details</h3>
+                <h3 className="text-sm font-semibold text-textMuted uppercase tracking-wider">Event Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2 space-y-2">
                     <Label htmlFor="eventName">Event Name</Label>
@@ -369,7 +390,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                   <div className="space-y-2">
                     <Label>Expected Attendees</Label>
                     <div className="relative">
-                      <Users size={18} className="absolute left-3 top-2.5 text-muted-foreground z-10 pointer-events-none" />
+                      <Users size={18} className="absolute left-3 top-2.5 text-textMuted z-10 pointer-events-none" />
                       <Select
                         value={formData.expectedAttendees}
                         onValueChange={(v) => handleChange('expectedAttendees', v)}
@@ -402,21 +423,21 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
 
               {/* Section 2: Organizer & Timing */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Logistics</h3>
+                <h3 className="text-sm font-semibold text-textMuted uppercase tracking-wider">Logistics</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2 space-y-2">
                     <Label htmlFor="clubName">Organizing Club</Label>
                     {currentUser.role === 'club' ? (
                       <div className="relative">
-                        <Lock size={18} className="absolute left-3 top-2.5 text-muted-foreground" />
+                        <Lock size={18} className="absolute left-3 top-2.5 text-textMuted" />
                         <Input
                           id="clubName"
                           type="text"
                           readOnly
                           value={formData.clubName}
-                          className="pl-10 bg-muted border-border cursor-not-allowed"
+                          className="pl-10 bg-hoverSoft border-borderSoft cursor-not-allowed"
                         />
-                        <p className="text-xs text-muted-foreground mt-1 ml-1">Auto-filled based on your login session.</p>
+                        <p className="text-xs text-textMuted mt-1 ml-1">Auto-filled based on your login session.</p>
                       </div>
                     ) : (
                       <Select value={formData.clubName} onValueChange={(v) => handleChange('clubName', v)}>
@@ -439,13 +460,13 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                     <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <div className="relative">
-                          <CalendarIcon size={18} className="absolute left-3 top-2.5 text-muted-foreground z-10 pointer-events-none" />
+                          <CalendarIcon size={18} className="absolute left-3 top-2.5 text-textMuted z-10 pointer-events-none" />
                           <Button
                             variant="outline"
                             className={cn(
                               "w-full justify-start text-left font-normal pl-10",
-                              !formData.date && "text-muted-foreground",
-                              warnings.timeline && "border-destructive"
+                              !formData.date && "text-textMuted",
+                              warnings.timeline && "border-error"
                             )}
                           >
                             {formData.date ? (
@@ -486,14 +507,14 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                   <div className="space-y-2">
                     <Label>Start Time</Label>
                     <div className="relative">
-                      <Clock size={18} className="absolute left-3 top-2.5 text-muted-foreground z-10 pointer-events-none" />
+                      <Clock size={18} className="absolute left-3 top-2.5 text-textMuted z-10 pointer-events-none" />
                       <Select
                         value={formData.startTime}
                         onValueChange={(v) => handleChange('startTime', v)}
                       >
                         <SelectTrigger className={cn(
                           "w-full pl-10",
-                          warnings.hours && "border-destructive"
+                          warnings.hours && "border-error"
                         )}>
                           <SelectValue placeholder="Select start time" />
                         </SelectTrigger>
@@ -518,14 +539,14 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                   <div className="space-y-2">
                     <Label>End Time</Label>
                     <div className="relative">
-                      <Clock size={18} className="absolute left-3 top-2.5 text-muted-foreground z-10 pointer-events-none" />
+                      <Clock size={18} className="absolute left-3 top-2.5 text-textMuted z-10 pointer-events-none" />
                       <Select
                         value={formData.endTime}
                         onValueChange={(v) => handleChange('endTime', v)}
                       >
                         <SelectTrigger className={cn(
                           "w-full pl-10",
-                          warnings.hours && "border-destructive"
+                          warnings.hours && "border-error"
                         )}>
                           <SelectValue placeholder="Select end time" />
                         </SelectTrigger>
@@ -572,21 +593,21 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
 
               {/* Section 3: Venue */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Venue Selection</h3>
+                <h3 className="text-sm font-semibold text-textMuted uppercase tracking-wider">Venue Selection</h3>
                 <div className="space-y-2">
                   <Label htmlFor="venueId">Preferred Venue</Label>
                   <div className="relative">
-                    <MapPin size={18} className="absolute left-3 top-2.5 text-muted-foreground z-10 pointer-events-none" />
+                    <MapPin size={18} className="absolute left-3 top-2.5 text-textMuted z-10 pointer-events-none" />
                     <Select value={formData.venueId} onValueChange={(v) => handleChange('venueId', v)}>
                       <SelectTrigger id="venueId" className="w-full pl-10">
                         <SelectValue placeholder="Select a Venue..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Category A (General)</div>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-textMuted">Category A (General)</div>
                         {venues.filter(v => normalizeVenueCategory(v.category) === 'A').map(v => (
                           <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                         ))}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">Category B (Restricted)</div>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-textMuted mt-2">Category B (Restricted)</div>
                         {venues.filter(v => normalizeVenueCategory(v.category) === 'B').map(v => (
                           <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                         ))}
@@ -607,30 +628,34 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
               </div>
 
               {/* Actions */}
-              <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => window.history.back()}
-                  className="w-full sm:w-auto"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={hasErrors}
-                  className="w-full sm:w-auto"
-                >
-                  Submit Request
-                  <CheckCircle2 size={18} />
-                </Button>
+              <div className="pt-6 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3">
+                <motion.div whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.history.back()}
+                    className="w-full rounded-xl h-11"
+                  >
+                    Cancel
+                  </Button>
+                </motion.div>
+                <motion.div whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
+                  <Button
+                    type="submit"
+                    disabled={hasErrors}
+                    className="w-full rounded-xl h-11 shadow-lg shadow-primary/20"
+                  >
+                    Submit Request
+                    <CheckCircle2 size={18} />
+                  </Button>
+                </motion.div>
               </div>
 
             </form>
           </CardContent>
         </Card>
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 

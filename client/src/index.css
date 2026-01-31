@@ -3,88 +3,124 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Stripe-inspired Gradient SaaS Theme */
 :root {
-  /* Black & Dark Blue Theme */
-  /* Background: Pure black */
-  --background: #000000;
-  /* Surface/Card - Very dark gray with slight blue tint */
-  --card: #0A0E1A;
-  --card-foreground: #F9FAFB;
-  /* Popover */
-  --popover: #0A0E1A;
-  --popover-foreground: #F9FAFB;
-  /* Text Primary */
-  --foreground: #F9FAFB;
-  /* Text Secondary */
-  --muted-foreground: #9CA3AF;
-  
-  /* Primary Accent (Dark Blue) - for buttons, active states, links, focus rings */
-  --primary: #1E3A8A; /* Dark blue */
-  --primary-foreground: #F9FAFB;
-  
-  /* Secondary Accent (Darker Blue) - for highlights, selected slots, badges, CTA emphasis */
-  --secondary: #1E40AF; /* Slightly lighter dark blue */
-  --secondary-foreground: #F9FAFB;
-  
-  /* Muted backgrounds - Dark with blue tint */
-  --muted: #0F172A;
-  
-  /* Accent - Dark blue-gray */
-  --accent: #1E293B;
-  --accent-foreground: #F9FAFB;
-  
-  /* Destructive */
-  --destructive: #DC2626;
-  --destructive-foreground: #F9FAFB;
-  
-  /* Borders and Inputs - Dark blue-gray */
-  --border: #1E293B;
-  --input: #1E293B;
-  --ring: #1E3A8A; /* Dark blue for focus rings */
-  
-  /* Border Radius - Soft rounded corners */
-  --radius: 1rem; /* rounded-2xl = 1rem */
+  /* Base */
+  --bgMain: #F7F9FC;
+  --card: #FFFFFF;
+  --borderSoft: #E6EBF1;
+  --hoverSoft: #F0F4F8;
+  --textPrimary: #0A2540;
+  --textSecondary: #425466;
+  --textMuted: #697386;
+  --brand: #635BFF;
+  --brandLink: #5469D4;
+  --success: #24B47E;
+  --error: #DF1B41;
+  --warning: #F6A609;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A2540;
+  --accent: #F0F4F8;
+  --accent-foreground: #0A2540;
+  /* Gradient system (light mode - subtle) */
+  --gradient-primary: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #3b82f6 100%);
+  --gradient-glow-violet: rgba(139, 92, 246, 0.15);
+  --gradient-glow-sky: rgba(56, 189, 248, 0.12);
+  --gradient-glow-pink: rgba(236, 72, 153, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glow-shadow: 0 0 40px -10px rgba(99, 91, 255, 0.25);
+}
+
+/* Dark mode - Stripe gradient style, deep navy, proper visibility */
+.dark {
+  --bgMain: #0A0F1F;
+  --card: rgba(15, 23, 42, 0.7);
+  --borderSoft: rgba(148, 163, 184, 0.2);
+  --hoverSoft: rgba(30, 41, 59, 0.8);
+  --textPrimary: #f1f5f9;
+  --textSecondary: #cbd5e1;
+  --textMuted: #94a3b8;
+  --brand: #818cf8;
+  --brandLink: #a5b4fc;
+  --success: #34d399;
+  --error: #f87171;
+  --warning: #fbbf24;
+  --popover: rgba(15, 23, 42, 0.95);
+  --popover-foreground: #f1f5f9;
+  --accent: rgba(30, 41, 59, 0.9);
+  --accent-foreground: #f1f5f9;
+  /* Gradient system (dark mode - vibrant) */
+  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #3b82f6 100%);
+  --gradient-glow-violet: rgba(139, 92, 246, 0.35);
+  --gradient-glow-sky: rgba(56, 189, 248, 0.25);
+  --gradient-glow-pink: rgba(236, 72, 153, 0.15);
+  --glass-bg: rgba(15, 23, 42, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glow-shadow: 0 0 50px -5px rgba(139, 92, 246, 0.4);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Colors - use CSS vars for dark mode support */
+  --color-bgMain: var(--bgMain);
   --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
+  --color-borderSoft: var(--borderSoft);
+  --color-hoverSoft: var(--hoverSoft);
+  --color-textPrimary: var(--textPrimary);
+  --color-textSecondary: var(--textSecondary);
+  --color-textMuted: var(--textMuted);
+  --color-brand: var(--brand);
+  --color-brand-link: var(--brandLink);
+  --color-secondary: var(--brandLink);
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+  /* Semantic aliases */
+  --color-background: var(--bgMain);
+  --color-foreground: var(--textPrimary);
+  --color-muted-foreground: var(--textMuted);
+  --color-primary: var(--brand);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --color-primary-foreground: #FFFFFF;
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: #FFFFFF;
+  --color-muted: var(--color-hoverSoft);
+  --color-border: var(--color-borderSoft);
+  --color-input: var(--color-borderSoft);
+  --color-ring: #635BFF;
+  /* Radius */
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-sm: 8px;
+  --radius-md: 8px;
+  /* Shadow */
+  --shadow-card: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.08);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--color-borderSoft);
+  }
+  
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
   }
   
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    font-variation-settings: normal;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
+    @apply text-textPrimary min-h-screen antialiased;
+    background: var(--bgMain);
+    transition: background-color 0.3s ease;
+  }
+  
+  .dark body {
+    background: #0A0F1F;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 50%, rgba(139, 92, 246, 0.1), transparent),
+      radial-gradient(ellipse 50% 30% at 0% 80%, rgba(56, 189, 248, 0.08), transparent);
   }
   
   /* Enhanced Typography Scale */
@@ -115,15 +151,15 @@
     line-height: 1.4;
   }
   
-  /* Better text contrast and readability */
+  /* Body text */
   p {
-    @apply leading-relaxed;
+    @apply text-textSecondary leading-relaxed;
     line-height: 1.6;
   }
   
-  /* Improved focus states */
+  /* Focus states */
   *:focus-visible {
-    @apply outline-2 outline-offset-2 outline-ring;
+    @apply outline-2 outline-offset-2 outline-brand/30;
   }
 }
 
@@ -134,48 +170,79 @@
   .animate-accordion-up {
     animation: accordion-up 0.2s ease-out;
   }
+  /* Mobile-friendly touch targets */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .shadow-card {
+    box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.08);
+  }
+  /* Glassmorphism utilities - theme-aware */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+  .dark .glass {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  .glass-subtle {
+    background: color-mix(in srgb, var(--glass-bg) 80%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+  }
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  .dark .glass-card {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+  .glass-dark {
+    background: color-mix(in srgb, var(--glass-bg) 90%, black);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border);
+  }
+  .dark .glass-dark {
+    background: rgba(10, 15, 31, 0.85);
+  }
 }
 
-/* React Day Picker Styles - Black & Dark Blue Theme */
+/* React Day Picker - Stripe Theme */
 .rdp {
-  --rdp-cell-size: 2.5rem;
-  --rdp-accent-color: #1E3A8A; /* Dark blue for primary selection */
-  --rdp-background-color: #0A0E1A; /* Card color */
-  --rdp-accent-color-dark: #1E40AF; /* Darker blue for highlights */
-  --rdp-background-color-dark: #0A0E1A;
-  --rdp-outline: 2px solid var(--rdp-accent-color);
-  --rdp-outline-selected: 3px solid var(--rdp-accent-color);
+  --rdp-cell-size: 2.75rem;
+  --rdp-accent-color: #635BFF;
+  --rdp-accent-color-dark: #5469D4;
   margin: 0;
 }
 
-.rdp-button_reset {
-  appearance: none;
-  position: relative;
-  margin: 0;
-  padding: 0;
+.dark .rdp {
+  --rdp-accent-color: #818cf8;
+  --rdp-accent-color-dark: #a5b4fc;
 }
 
-.rdp-button {
-  border: 2px solid transparent;
-  transition: all 0.2s ease;
+/* Calendar container when standalone */
+[data-slot="calendar"] {
+  --rdp-cell-size: 2.75rem;
 }
 
-.rdp-button[disabled] {
-  opacity: 0.3;
-}
-
-.rdp-button:hover:not([disabled]) {
-  background-color: #1E293B;
-  color: #1E40AF;
-}
-
-.rdp-day_selected,
-.rdp-day_selected:focus-visible,
-.rdp-day_selected:hover {
-  color: #F9FAFB;
-  opacity: 1;
-  background-color: #1E3A8A; /* Dark blue for selected */
-  box-shadow: none; /* Subtle borders, not heavy shadows */
+/* Ensure day cells have consistent size */
+.rdp-day {
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
 }
 
 @keyframes accordion-down {

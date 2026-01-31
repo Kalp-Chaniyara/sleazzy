@@ -1,12 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, ChevronRight, AlertCircle, Calendar as CalendarIcon, Users } from 'lucide-react';
+import { CheckCircle, XCircle, ChevronRight, AlertCircle, Calendar as CalendarIcon, Users, AlertTriangle, RefreshCw } from 'lucide-react';
 import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
+import { toastError, toastSuccess } from '../lib/toast';
 import { Booking } from '../types';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
 import { Calendar } from '../components/ui/calendar';
 
@@ -24,8 +27,11 @@ const AdminDashboard: React.FC = () => {
 
   const [calendarEvents, setCalendarEvents] = React.useState<Booking[]>([]);
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+  const [error, setError] = React.useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
       const [venuesData, pendingData, statsData, allBookingsData] = await Promise.all([
         apiRequest<ApiVenue[]>('/api/venues'),
@@ -38,19 +44,20 @@ const AdminDashboard: React.FC = () => {
       setPendingRequests(pendingData.map(mapBooking));
       setStats(statsData);
       setCalendarEvents(allBookingsData.map(mapBooking));
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError(getErrorMessage(err, 'Failed to load dashboard.'));
       setPendingRequests([]);
       setStats({ pending: 0, scheduled: 0, conflicts: 0, activeClubs: 0 });
       setCalendarEvents([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   React.useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const handleAction = async (bookingId: string, status: 'approved' | 'rejected') => {
     try {
@@ -59,10 +66,11 @@ const AdminDashboard: React.FC = () => {
         auth: true,
         body: { status }
       });
+      toastSuccess(`Booking ${status} successfully`);
       fetchData();
-    } catch (error) {
-      console.error(`Failed to ${status} booking:`, error);
-      alert(`Failed to ${status} booking`);
+    } catch (err) {
+      console.error(`Failed to ${status} booking:`, err);
+      toastError(err, `Failed to ${status} booking. Please try again.`);
     }
   };
 
@@ -87,12 +95,62 @@ const AdminDashboard: React.FC = () => {
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="space-y-6 sm:space-y-8"
+      >
+        <div className="min-w-0">
+          <h2 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight">Admin Dashboard</h2>
+        </div>
+        <Alert variant="destructive" className="rounded-xl">
+          <AlertTriangle size={16} />
+          <AlertTitle>Could not load dashboard</AlertTitle>
+          <AlertDescription className="mt-1">{error}</AlertDescription>
+          <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={fetchData}>
+            <RefreshCw size={14} />
+            Retry
+          </Button>
+        </Alert>
+      </motion.div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="space-y-6 sm:space-y-8"
+      >
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-64 sm:w-80" />
+          <Skeleton className="h-5 w-80 sm:w-96" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {[1,2,3,4].map(i => (
+            <Skeleton key={i} className="h-32 sm:h-36 rounded-2xl" />
+          ))}
+        </div>
+        <Skeleton className="h-[400px] w-full rounded-2xl" />
+        <Skeleton className="h-48 w-full rounded-2xl" />
+      </motion.div>
+    );
+  }
+
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6 sm:space-y-8"
+    >
       {/* Header */}
-      <div>
-        <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Admin Dashboard</h2>
-        <p className="text-muted-foreground mt-2 text-base sm:text-lg font-medium">Overview of venue requests and system status.</p>
+      <div className="min-w-0">
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight">Admin Dashboard</h2>
+        <p className="text-textMuted mt-2 text-sm sm:text-base font-medium">Overview of venue requests and system status.</p>
       </div>
 
       {/* Key Metrics */}
@@ -100,13 +158,14 @@ const AdminDashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0 }}
+          transition={{ duration: 0.5, delay: 0, ease: [0.25, 0.46, 0.45, 0.94] }}
+          whileHover={{ y: -2 }}
         >
-          <Card className="border border-border hover:border-primary/40 transition-colors">
+          <Card className="rounded-xl hover:border-brand/30 transition-colors rounded-2xl shadow-lg shadow-black/5">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pending</div>
-                <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
+                <div className="text-sm font-medium text-textMuted uppercase tracking-wider">Pending</div>
+                <div className="p-2 bg-brand/10 text-brand rounded-lg border border-brand/20">
                   <AlertCircle size={18} />
                 </div>
               </div>
@@ -117,13 +176,14 @@ const AdminDashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{ duration: 0.5, delay: 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
+          whileHover={{ y: -2 }}
         >
-          <Card className="border border-border hover:border-primary/40 transition-colors">
+          <Card className="rounded-xl hover:border-brand/30 transition-colors rounded-2xl shadow-lg shadow-black/5">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Scheduled</div>
-                <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
+                <div className="text-sm font-medium text-textMuted uppercase tracking-wider">Scheduled</div>
+                <div className="p-2 bg-brand/10 text-brand rounded-lg border border-brand/20">
                   <CalendarIcon size={18} />
                 </div>
               </div>
@@ -134,13 +194,14 @@ const AdminDashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+          whileHover={{ y: -2 }}
         >
-          <Card className="border border-border hover:border-primary/40 transition-colors">
+          <Card className="rounded-xl hover:border-brand/30 transition-colors rounded-2xl shadow-lg shadow-black/5">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Conflicts</div>
-                <div className="p-2 bg-destructive/10 text-destructive rounded-2xl border border-destructive/20">
+                <div className="text-sm font-medium text-textMuted uppercase tracking-wider">Conflicts</div>
+                <div className="p-2 bg-error/10 text-error rounded-lg border border-error/20">
                   <XCircle size={18} />
                 </div>
               </div>
@@ -151,13 +212,14 @@ const AdminDashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
+          transition={{ duration: 0.5, delay: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+          whileHover={{ y: -2 }}
         >
-          <Card className="border border-border hover:border-primary/40 transition-colors">
+          <Card className="rounded-xl hover:border-brand/30 transition-colors rounded-2xl shadow-lg shadow-black/5">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Clubs</div>
-                <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
+                <div className="text-sm font-medium text-textMuted uppercase tracking-wider">Active Clubs</div>
+                <div className="p-2 bg-brand/10 text-brand rounded-lg border border-brand/20">
                   <CheckCircle size={18} />
                 </div>
               </div>
@@ -173,8 +235,8 @@ const AdminDashboard: React.FC = () => {
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        <Card className="border border-border">
-          <CardHeader className="border-b border-border">
+        <Card className="border border-borderSoft rounded-xl">
+          <CardHeader className="border-b border-borderSoft">
             <CardTitle className="text-lg sm:text-xl">Master Event Calendar</CardTitle>
           </CardHeader>
 
@@ -190,15 +252,15 @@ const AdminDashboard: React.FC = () => {
                     hasEvents: eventDates
                   }}
                   modifierClassNames={{
-                    hasEvents: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-2 after:h-2 after:rounded-full after:bg-primary after:shadow-lg after:shadow-primary/50"
+                    hasEvents: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-brand"
                   }}
                   className="rounded-2xl"
                 />
               </div>
 
               {/* Selected Date Details */}
-              <div className="md:w-72 border-t md:border-t-0 md:border-l border-border/80 md:pl-6 pt-4 md:pt-0 flex flex-col">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+              <div className="md:w-72 border-t md:border-t-0 md:border-l border-borderSoft md:pl-6 pt-4 md:pt-0 flex flex-col">
+                <h4 className="text-sm font-semibold text-textMuted uppercase tracking-wider mb-4">
                   {selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : 'Select a date'}
                 </h4>
 
@@ -211,19 +273,19 @@ const AdminDashboard: React.FC = () => {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.2, delay: index * 0.05 }}
                       >
-                        <Card className="border border-border hover:border-primary/40 transition-colors">
+                        <Card className="rounded-xl hover:border-brand/30 transition-colors">
                           <CardContent className="p-3">
                             <div className="flex justify-between items-start">
-                              <div className="font-semibold text-foreground text-sm mb-1">{event.eventName}</div>
+                              <div className="font-semibold text-textPrimary text-sm mb-1">{event.eventName}</div>
                               <Badge variant={event.status === 'approved' ? 'success' : event.status === 'pending' ? 'pending' : 'destructive'} className="text-[10px] px-1.5 py-0 h-5">
                                 {event.status}
                               </Badge>
                             </div>
-                            <div className="text-xs text-primary font-medium mt-0.5 mb-2">{event.clubName}</div>
-                            <div className="mt-2 text-xs text-muted-foreground">
+                            <div className="text-xs text-brand font-medium mt-0.5 mb-2">{event.clubName}</div>
+                            <div className="mt-2 text-xs text-textMuted">
                               {event.startTime} - {event.endTime}
                             </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
+                            <div className="mt-1 text-xs text-textMuted">
                               {getVenueName(event.venueId)}
                             </div>
                           </CardContent>
@@ -231,7 +293,7 @@ const AdminDashboard: React.FC = () => {
                       </motion.div>
                     ))
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
+                    <div className="text-center py-8 text-textMuted text-sm">
                       No events found for this day.
                     </div>
                   )}
@@ -248,8 +310,8 @@ const AdminDashboard: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.4 }}
       >
-        <Card className="border border-border">
-          <CardHeader className="border-b border-border">
+        <Card className="border border-borderSoft rounded-xl">
+          <CardHeader className="border-b border-borderSoft">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-lg sm:text-xl">Pending Requests</CardTitle>
@@ -271,7 +333,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
               ) : pendingRequests.length === 0 ? (
                 <div className="p-12 text-center">
-                  <p className="text-muted-foreground">No pending requests.</p>
+                  <p className="text-textMuted">No pending requests.</p>
                 </div>
               ) : (
                 pendingRequests.map((req, index) => (
@@ -280,7 +342,7 @@ const AdminDashboard: React.FC = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="p-4 sm:p-6 hover:bg-muted transition-colors"
+                    className="p-4 sm:p-6 hover:bg-hoverSoft transition-colors"
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
                       <div className="flex-1">
@@ -288,11 +350,11 @@ const AdminDashboard: React.FC = () => {
                           <Badge variant="secondary" className="text-xs">
                             {req.clubName}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <span className="text-sm text-muted-foreground">{new Date(req.date).toLocaleDateString()}</span>
+                          <span className="text-xs text-textMuted">•</span>
+                          <span className="text-sm text-textMuted">{new Date(req.date).toLocaleDateString()}</span>
                         </div>
                         <h4 className="text-base sm:text-lg font-medium text-foreground">{req.eventName}</h4>
-                        <div className="mt-1 text-sm text-muted-foreground">
+                        <div className="mt-1 text-sm text-textMuted">
                           Requested Venue: <span className="font-semibold text-foreground">{getVenueName(req.venueId)}</span> ({req.startTime} - {req.endTime})
                         </div>
                       </div>
@@ -324,7 +386,7 @@ const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 

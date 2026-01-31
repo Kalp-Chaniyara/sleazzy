@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, Search, Filter, Clock, Calendar, Check, X } from 'lucide-react';
+import { CheckCircle, XCircle, Search, Filter, Clock, Calendar, Check, X, AlertTriangle, RefreshCw } from 'lucide-react';
 import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
+import { toastError, toastSuccess } from '../lib/toast';
 import { Booking } from '../types';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -17,26 +20,30 @@ const AdminRequests: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRequests = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [venuesData, pendingData] = await Promise.all([
+        apiRequest<ApiVenue[]>('/api/venues'),
+        apiRequest<ApiBooking[]>('/api/admin/pending', { auth: true }),
+      ]);
+      setVenues(venuesData);
+      setRequests(pendingData.map(mapBooking));
+    } catch (err) {
+      console.error('Failed to fetch requests:', err);
+      setError(getErrorMessage(err, 'Failed to load requests.'));
+      setRequests([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
-    const fetchRequests = async () => {
-      setIsLoading(true);
-      try {
-        const [venuesData, pendingData] = await Promise.all([
-          apiRequest<ApiVenue[]>('/api/venues'),
-          apiRequest<ApiBooking[]>('/api/admin/pending', { auth: true }),
-        ]);
-        setVenues(venuesData);
-        setRequests(pendingData.map(mapBooking));
-      } catch (error) {
-        console.error('Failed to fetch requests:', error);
-        setRequests([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchRequests();
-  }, []);
+  }, [fetchRequests]);
 
   const handleAction = async (id: string, action: 'approved' | 'rejected') => {
     try {
@@ -45,11 +52,12 @@ const AdminRequests: React.FC = () => {
         auth: true,
         body: { status: action, adminNote: '' },
       });
-
+      toastSuccess(`Request ${action === 'approved' ? 'approved' : 'rejected'} successfully`);
       const pendingData = await apiRequest<ApiBooking[]>('/api/admin/pending', { auth: true });
       setRequests(pendingData.map(mapBooking));
-    } catch (error) {
-      console.error('Failed to update request:', error);
+    } catch (err) {
+      console.error('Failed to update request:', err);
+      toastError(err, `Failed to ${action} request. Please try again.`);
     }
   };
 
@@ -68,28 +76,45 @@ const AdminRequests: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6"
+    >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Request Management</h2>
-          <p className="text-muted-foreground mt-2 text-base sm:text-lg font-medium">Review and take action on venue booking requests.</p>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-textPrimary tracking-tight">Request Management</h2>
+          <p className="text-textMuted mt-2 text-sm sm:text-base font-medium">Review and take action on venue booking requests.</p>
         </div>
         
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-muted-foreground" size={18} />
+        <div className="relative w-full sm:w-64 shrink-0">
+          <Search className="absolute left-3 top-2.5 text-textMuted pointer-events-none" size={18} />
           <Input 
             type="text" 
             placeholder="Search requests..." 
-            className="pl-10 w-full sm:w-64"
+            className="pl-10 w-full rounded-xl"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
+      {error && (
+        <Alert variant="destructive" className="rounded-xl">
+          <AlertTriangle size={16} />
+          <AlertTitle>Could not load requests</AlertTitle>
+          <AlertDescription className="mt-1">{error}</AlertDescription>
+          <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={fetchRequests}>
+            <RefreshCw size={14} />
+            Retry
+          </Button>
+        </Alert>
+      )}
+
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pending' | 'history')} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-muted border-border">
+        <TabsList className="grid w-full grid-cols-2 bg-hoverSoft border-borderSoft rounded-xl p-1">
           <TabsTrigger value="pending" className="data-[state=active]:bg-background">
             Pending Review ({requests.filter(r => r.status === 'pending').length})
           </TabsTrigger>
@@ -99,7 +124,7 @@ const AdminRequests: React.FC = () => {
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
-          <Card className="border border-border">
+          <Card className="rounded-xl overflow-hidden">
             {isLoading ? (
               <CardContent className="p-6">
                 <Skeleton className="h-12 w-full mb-4" />
@@ -107,9 +132,9 @@ const AdminRequests: React.FC = () => {
                 <Skeleton className="h-12 w-full" />
               </CardContent>
             ) : filteredRequests.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-muted border-b border-border uppercase tracking-wider text-xs font-semibold text-muted-foreground">
+              <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                <table className="w-full min-w-[600px] sm:min-w-0 text-left text-sm">
+                  <thead className="bg-hoverSoft border-b border-borderSoft uppercase tracking-wider text-xs font-semibold text-textMuted">
                     <tr>
                       <th className="px-4 sm:px-6 py-4">Club / Event</th>
                       <th className="px-4 sm:px-6 py-4 hidden sm:table-cell">Venue & Time</th>
@@ -125,12 +150,12 @@ const AdminRequests: React.FC = () => {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
-                        className="hover:bg-muted transition-colors"
+                        className="hover:bg-hoverSoft transition-colors"
                       >
                         <td className="px-4 sm:px-6 py-4">
-                          <div className="font-semibold text-foreground">{req.eventName}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{req.clubName}</div>
-                          <div className="text-xs text-muted-foreground mt-1 sm:hidden">
+                          <div className="font-semibold text-textPrimary">{req.eventName}</div>
+                          <div className="text-xs text-textMuted mt-0.5">{req.clubName}</div>
+                          <div className="text-xs text-textMuted mt-1 sm:hidden">
                             <div className="flex items-center gap-1">
                               <Clock size={12} /> {req.startTime} - {req.endTime}
                             </div>
@@ -138,16 +163,16 @@ const AdminRequests: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
-                          <div className="flex items-center gap-1.5 text-foreground">
+                          <div className="flex items-center gap-1.5 text-textPrimary">
                             {getVenueName(req.venueId)}
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <div className="text-xs text-textMuted mt-0.5 flex items-center gap-1">
                             <Clock size={12} /> {req.startTime} - {req.endTime}
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4">
                           <div className="flex items-center gap-1.5">
-                            <Calendar size={14} className="text-muted-foreground" />
+                            <Calendar size={14} className="text-textMuted" />
                             {new Date(req.date).toLocaleDateString()}
                           </div>
                         </td>
@@ -169,7 +194,7 @@ const AdminRequests: React.FC = () => {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleAction(req.id, 'rejected')}
-                                className="text-muted-foreground hover:text-destructive"
+                                className="text-textMuted hover:text-error"
                                 title="Reject"
                               >
                                 <X size={18} />
@@ -185,7 +210,7 @@ const AdminRequests: React.FC = () => {
                               </Button>
                             </div>
                           ) : (
-                            <div className="text-xs text-muted-foreground italic">
+                            <div className="text-xs text-textMuted italic">
                               Processed
                             </div>
                           )}
@@ -196,18 +221,18 @@ const AdminRequests: React.FC = () => {
                 </table>
               </div>
             ) : (
-              <CardContent className="p-12 text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted text-muted-foreground mb-4">
+              <CardContent className="p-8 sm:p-12 text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-hoverSoft text-textMuted mb-4">
                   <Filter size={24} />
                 </div>
-                <h3 className="text-lg font-medium text-foreground">No requests found</h3>
-                <p className="text-muted-foreground mt-1">Try adjusting your search or tab filter.</p>
+                <h3 className="text-lg font-medium text-textPrimary">No requests found</h3>
+                <p className="text-textMuted mt-1">Try adjusting your search or tab filter.</p>
               </CardContent>
             )}
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   );
 };
 

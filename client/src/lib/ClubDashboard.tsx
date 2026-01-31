@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CalendarPlus, Clock, MapPin, ChevronRight, Info, Users } from 'lucide-react';
-import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from '../lib/api';
+import { CalendarPlus, Clock, MapPin, ChevronRight, Info, Users, AlertTriangle, RefreshCw } from 'lucide-react';
+import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from './api';
+import { getErrorMessage } from './errors';
 import { Booking } from '../types';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Calendar } from '../components/ui/calendar';
+import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 import { User } from '../types';
@@ -22,33 +24,37 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
   const [myEvents, setMyEvents] = React.useState<Booking[]>([]);
   const [venues, setVenues] = React.useState<ApiVenue[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const fetchEvents = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [venuesData, myBookings, publicBookings] = await Promise.all([
+        apiRequest<ApiVenue[]>('/api/venues'),
+        apiRequest<ApiBooking[]>('/api/my-bookings', { auth: true }),
+        apiRequest<ApiBooking[]>('/api/public-bookings'),
+      ]);
+
+      const mappedMyBookings = myBookings.map(mapBooking);
+      const mappedPublicBookings = publicBookings.map(mapBooking);
+
+      setVenues(venuesData);
+      setMyEvents(mappedMyBookings);
+      setAllEvents(mappedPublicBookings);
+    } catch (err) {
+      console.error('Failed to fetch events:', err);
+      setError(getErrorMessage(err, 'Failed to load events.'));
+      setAllEvents([]);
+      setMyEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
-    const fetchEvents = async () => {
-      setIsLoading(true);
-      try {
-        const [venuesData, myBookings, publicBookings] = await Promise.all([
-          apiRequest<ApiVenue[]>('/api/venues'),
-          apiRequest<ApiBooking[]>('/api/my-bookings', { auth: true }),
-          apiRequest<ApiBooking[]>('/api/public-bookings'),
-        ]);
-
-        const mappedMyBookings = myBookings.map(mapBooking);
-        const mappedPublicBookings = publicBookings.map(mapBooking);
-
-        setVenues(venuesData);
-        setMyEvents(mappedMyBookings);
-        setAllEvents(mappedPublicBookings);
-      } catch (error) {
-        console.error('Failed to fetch events:', error);
-        setAllEvents([]);
-        setMyEvents([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchEvents();
-  }, []);
+  }, [fetchEvents]);
 
   const getVenueName = (id: string) => venues.find(v => v.id === id)?.name || id;
 
@@ -72,22 +78,67 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
+  if (error) {
+    return (
+      <div className="space-y-6 sm:space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight">Welcome, {user.name}</h2>
+        </div>
+        <Alert variant="destructive" className="rounded-xl">
+          <AlertTriangle size={16} />
+          <AlertTitle>Could not load dashboard</AlertTitle>
+          <AlertDescription className="mt-1">{error}</AlertDescription>
+          <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={fetchEvents}>
+            <RefreshCw size={14} />
+            Retry
+          </Button>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 sm:space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-64 sm:w-80" />
+            <Skeleton className="h-5 w-72 sm:w-96" />
+          </div>
+          <Skeleton className="h-11 w-full sm:w-40 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+          <div className="lg:col-span-2">
+            <Skeleton className="h-[420px] w-full rounded-2xl" />
+          </div>
+          <Skeleton className="h-[320px] w-full rounded-2xl" />
+        </div>
+        <Skeleton className="h-24 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6 sm:space-y-8"
+    >
       {/* Welcome Section */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
-        <div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Welcome, {user.name}</h2>
-          <p className="text-muted-foreground mt-2 text-base sm:text-lg font-medium">Manage your events and venue bookings efficiently.</p>
+        <div className="min-w-0">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight truncate">Welcome, {user.name}</h2>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base font-medium">Manage your events and venue bookings efficiently.</p>
         </div>
         <Button
           asChild
-          className="w-full sm:w-auto"
+          className="w-full sm:w-auto shrink-0 rounded-xl h-11 shadow-lg shadow-primary/20"
         >
           <Link to="/book">
             <CalendarPlus size={20} />
@@ -104,8 +155,8 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="lg:col-span-2"
         >
-          <Card className="border border-border">
-            <CardHeader className="border-b border-border">
+          <Card className="rounded-xl">
+            <CardHeader className="border-b border-borderSoft p-4 sm:p-6">
               <CardTitle className="text-lg sm:text-xl">Global Event Schedule</CardTitle>
             </CardHeader>
 
@@ -121,14 +172,14 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
                       hasEvents: eventDates
                     }}
                     modifierClassNames={{
-                      hasEvents: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-2 after:h-2 after:rounded-full after:bg-primary after:shadow-lg after:shadow-primary/50"
+                      hasEvents: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-brand"
                     }}
                     className="rounded-2xl"
                   />
                 </div>
 
                 {/* Selected Date Details */}
-                <div className="md:w-64 border-t md:border-t-0 md:border-l border-border/80 md:pl-6 pt-4 md:pt-0 flex flex-col">
+                <div className="md:w-64 border-t md:border-t-0 md:border-l border-borderSoft md:pl-6 pt-4 md:pt-0 flex flex-col">
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                     {selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : 'Select a date'}
                   </h4>
@@ -138,11 +189,12 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
                       selectedDateEvents.map((event, index) => (
                         <motion.div
                           key={event.id}
-                          initial={{ opacity: 0, scale: 0.9 }}
+                          initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.2, delay: index * 0.05 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          whileHover={{ scale: 1.01 }}
                         >
-                          <Card className="border border-border hover:border-primary/40 transition-colors">
+                          <Card className="border border-borderSoft rounded-xl hover:border-brand/30 transition-colors rounded-xl">
                             <CardContent className="p-4">
                               <div className="font-semibold text-foreground text-sm mb-1">{event.eventName}</div>
                               <div className="text-xs text-primary font-medium mt-0.5 mb-2">{event.clubName}</div>
@@ -178,8 +230,8 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
         >
-          <Card className="border border-border">
-            <CardHeader className="border-b border-border">
+          <Card className="border border-borderSoft rounded-xl">
+            <CardHeader className="border-b border-borderSoft">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">My Club Events</CardTitle>
                 <Button variant="ghost" size="sm" asChild>
@@ -195,7 +247,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="p-4 hover:bg-muted transition-colors"
+                    className="p-4 hover:bg-hoverSoft transition-colors"
                   >
                     <div className="font-semibold text-foreground text-sm">{event.eventName}</div>
                     <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
@@ -246,10 +298,10 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
+        transition={{ duration: 0.5, delay: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
       >
-        <Alert variant="info" className="border-primary/40 bg-primary/5">
-          <Info className="h-4 w-4" />
+        <Alert variant="info" className="border-brand/30 bg-primary/5 rounded-2xl">
+          <Info className="h-4 w-4 shrink-0" />
           <AlertTitle>Booking Policy Reminder</AlertTitle>
           <AlertDescription className="mt-1">
             Category A venues are auto-approved for Group A clubs if no conflict exists.
@@ -257,7 +309,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
           </AlertDescription>
         </Alert>
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 

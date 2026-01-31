@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { Toaster } from 'sonner';
 import App from './App';
+import { ThemeProvider } from './components/theme-provider';
 import './index.css';
 import 'react-day-picker/style.css';
 
@@ -12,6 +14,24 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="sleazzy-theme">
+      <App />
+      <Toaster
+        richColors
+        closeButton
+        position="top-right"
+        toastOptions={{
+          classNames: {
+            toast: 'rounded-xl border border-borderSoft bg-card shadow-[0_8px_32px_rgba(16,24,40,0.12)]',
+            title: 'text-textPrimary font-medium',
+            description: 'text-textMuted text-sm',
+            success: 'border-success/30',
+            error: 'border-error/30',
+            warning: 'border-warning/30',
+            info: 'border-brand/30',
+          },
+        }}
+      />
+    </ThemeProvider>
   </React.StrictMode>
 );

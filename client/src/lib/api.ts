@@ -1,3 +1,5 @@
+import { ApiError, NetworkError } from './errors';
+
 type ApiOptions = {
   method?: string;
   body?: unknown;
@@ -46,19 +48,40 @@ export const apiRequest = async <T>(path: string, options: ApiOptions = {}): Pro
     }
   }
 
-  const response = await fetch(url, {
-    method,
-    headers: requestHeaders,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    const message = (errorBody as { error?: string }).error || response.statusText;
-    throw new Error(message);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    throw new NetworkError(
+      err instanceof Error && err.message?.toLowerCase().includes('fetch')
+        ? 'Unable to reach the server. Please check your connection.'
+        : 'Network error. Please try again.'
+    );
   }
 
-  return response.json() as Promise<T>;
+  if (!response.ok) {
+    let message = response.statusText;
+    try {
+      const errorBody = await response.json().catch(() => ({}));
+      message =
+        (errorBody as { error?: string; message?: string }).error ??
+        (errorBody as { error?: string; message?: string }).message ??
+        message;
+    } catch {
+      // response.text() could fail; keep statusText
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  try {
+    return (await response.json()) as Promise<T>;
+  } catch {
+    throw new ApiError('Invalid response from server.', response.status);
+  }
 };
 
 export type ApiVenue = {

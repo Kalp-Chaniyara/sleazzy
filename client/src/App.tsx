@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ErrorBoundary } from './components/error-boundary';
 import Layout from './pages/Layout';
 import ClubDashboard from './lib/ClubDashboard';
 import AdminDashboard from './pages/AdminDashboard';
@@ -9,10 +10,11 @@ import MasterSchedule from './pages/MasterSchedule';
 import PolicyPage from './pages/PolicyPage';
 import MyBookings from './pages/MyBookings';
 import Login from './pages/Login';
-import { User, Role, ClubGroupType } from './types';
+import { User } from './types';
 import { ClipboardList, Layers } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { apiRequest } from './lib/api';
+import { toastError } from './lib/toast';
 
 // const PlaceholderPage: React.FC<{ title: string; icon?: React.ReactNode }> = ({ title, icon }) => (
 //   <div className="flex flex-col items-center justify-center h-96 text-center p-8 bg-card rounded-xl border border-border border-dashed">
@@ -25,39 +27,13 @@ import { apiRequest } from './lib/api';
 // );
 
 const App: React.FC = () => {
-  const getDefaultUser = (): User => {
-    if (import.meta.env.DEV) {
-      const storedRole = localStorage.getItem('dev_user_role') as Role | null;
-      const storedName = localStorage.getItem('dev_user_name') || 'Programming Club';
-
-      if (storedRole === 'admin') {
-        return {
-          email: 'admin@university.edu',
-          name: 'SBG Admin',
-          role: 'admin',
-        };
-      }
-
-      return {
-        email: 'club@university.edu',
-        name: storedName,
-        role: 'club',
-        group: 'A',
-      };
-    }
-    return null as any;
-  };
-
-  // Placeholder removed
   const [user, setUser] = useState<User | null>(null);
 
   React.useEffect(() => {
     const initAuth = async () => {
       // Check for existing session on load
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        handleSession(session);
-      }
+      handleSession(session);
 
       // Listen for changes (sign in, sign out, etc.)
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -72,10 +48,6 @@ const App: React.FC = () => {
 
   const handleSession = async (session: any) => {
     if (!session) {
-      // Don't clear user immediately if we want to allow dev override? 
-      // Actually, if we are in real auth mode, we should sync with session.
-      // But let's check if we have a DEV override active and NO session.
-      // For now, let's enforce real auth state.
       setUser(null);
       return;
     }
@@ -134,6 +106,7 @@ const App: React.FC = () => {
         setUser(newProfile);
       } catch (regError) {
         console.error("Auto-registration failed", regError);
+        toastError(regError, 'Could not complete setup. Please contact support.');
         setUser(null);
       }
     }
@@ -147,12 +120,6 @@ const App: React.FC = () => {
     // Clear state first to update UI immediately
     setUser(null);
 
-    // Clear dev mode persistence
-    if (import.meta.env.DEV) {
-      localStorage.removeItem('dev_user_role');
-      localStorage.removeItem('dev_user_name');
-    }
-
     // Clear specific auth tokens if any
     localStorage.removeItem('supabase_access_token');
 
@@ -162,17 +129,21 @@ const App: React.FC = () => {
       await supabase.auth.signOut();
     } catch (err) {
       console.error('Logout error:', err);
+      toastError(err, 'Logout failed. Please try again.');
     }
   };
 
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    return (
+      <Login onLogin={handleLogin} />
+    );
   }
 
   return (
-    <HashRouter>
-      <Layout user={user} onLogout={handleLogout}>
-        <Routes>
+    <ErrorBoundary>
+      <HashRouter>
+        <Layout user={user} onLogout={handleLogout}>
+          <Routes>
           <Route path="/" element={user.role === 'club' ? <ClubDashboard user={user} /> : <AdminDashboard />} />
 
           <Route path="/book" element={<BookSlot currentUser={user} />} />
@@ -186,6 +157,7 @@ const App: React.FC = () => {
         </Routes>
       </Layout>
     </HashRouter>
+    </ErrorBoundary>
   );
 };
 

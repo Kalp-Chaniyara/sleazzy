@@ -6,10 +6,14 @@ import * as z from 'zod';
 import { User, Role, ClubGroupType } from '../types';
 import { supabase } from '../lib/supabase';
 import { apiRequest } from '../lib/api';
+import { toastSuccess } from '../lib/toast';
+import { getErrorMessage } from '../lib/errors';
 import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { ThemeToggle } from '../components/theme-toggle';
+import { GradientBackground } from '../components/gradient-background';
+import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '../components/glass-card';
 import { Input } from '../components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import {
   Form,
@@ -67,7 +71,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             groupCategory: values.groupCategory,
           },
         });
-
+        toastSuccess('Account created successfully! Signing you in...');
         // After successful registration, proceed to login automatically
       }
 
@@ -92,50 +96,55 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         group?: ClubGroupType;
       }>('/api/auth/profile', { auth: true });
 
+      toastSuccess(`Welcome back, ${userProfile.name}!`);
       onLogin(userProfile);
 
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.message || 'Authentication failed.');
+      setError(getErrorMessage(err, 'Authentication failed.'));
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      {/* Subtle background effect - minimal */}
-      <div className="absolute inset-0 overflow-hidden opacity-30">
-        <div className="absolute top-0 right-0 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
+    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-bgMain dark:bg-transparent relative overflow-hidden">
+      <GradientBackground />
+      {/* Theme toggle - top right */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
       </div>
-
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-md"
+        transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="w-full max-w-md relative z-10"
       >
-        <Card className="border border-border bg-card">
+        <GlassCard gradientBorder noAnimate className="overflow-visible">
           {/* Header */}
-          <CardHeader className="border-b border-border pb-8 pt-8 text-center">
+          <GlassCardHeader className="border-b border-borderSoft dark:border-white/10 pb-8 pt-8 sm:pt-10 text-center px-6 sm:px-8">
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="w-14 h-14 bg-brand/10 rounded-xl flex items-center justify-center mx-auto mb-4"
             >
-              <ShieldCheck size={28} className="text-primary" />
+              <ShieldCheck size={28} className="text-brand" />
             </motion.div>
-            <CardTitle className="text-3xl font-bold text-foreground tracking-tight">Sleazzy</CardTitle>
-            <CardDescription className="text-muted-foreground mt-2 text-base font-medium">
+            <GlassCardTitle className="text-2xl sm:text-3xl font-semibold text-textPrimary tracking-tight">Sleazzy</GlassCardTitle>
+            <GlassCardDescription className="text-textSecondary mt-2 text-sm font-medium">
               Slot Booking Made Easy
-            </CardDescription>
-          </CardHeader>
+            </GlassCardDescription>
+          </GlassCardHeader>
 
           {/* Form */}
-          <CardContent className="p-6 sm:p-8">
-            <h2 className="text-xl font-semibold text-foreground mb-6 tracking-tight">
+          <GlassCardContent className="p-6 sm:p-8 space-y-6">
+            <motion.h2 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-lg sm:text-xl font-semibold text-textPrimary mb-6 tracking-tight"
+            >
               {isRegistering ? 'Club Registration' : 'Welcome Back'}
-            </h2>
+            </motion.h2>
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -164,7 +173,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                           <FormControl>
                             <div className="relative">
                               <select
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                                className="flex h-10 w-full rounded-lg border border-borderSoft bg-white px-3 py-2 text-sm text-textPrimary placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
                                 {...field}
                               >
                                 <option value="A">Group A (Academic/Tech)</option>
@@ -188,7 +197,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       <FormLabel>Email Address</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Mail size={18} className="absolute left-3 top-2.5 text-muted-foreground z-10" />
+                          <Mail size={18} className="absolute left-3 top-2.5 text-textMuted z-10" />
                           <Input
                             type="email"
                             className="pl-10"
@@ -210,7 +219,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       <FormLabel>Password</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Lock size={18} className="absolute left-3 top-2.5 text-muted-foreground z-10" />
+                          <Lock size={18} className="absolute left-3 top-2.5 text-textMuted z-10" />
                           <Input
                             type="password"
                             className="pl-10"
@@ -230,31 +239,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   </Alert>
                 )}
 
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                  disabled={form.formState.isSubmitting}
-                >
-                  {isRegistering ? 'Create Account' : 'Sign In'}
-                  <ArrowRight size={18} />
-                </Button>
+                <motion.div whileTap={{ scale: 0.98 }}>
+                  <Button
+                    type="submit"
+                    className="w-full rounded-xl h-11"
+                    disabled={form.formState.isSubmitting}
+                  >
+                    {isRegistering ? 'Create Account' : 'Sign In'}
+                    <ArrowRight size={18} />
+                  </Button>
+                </motion.div>
               </form>
             </Form>
 
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
+                <span className="w-full border-t border-borderSoft" />
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              <div className="relative flex justify-center text-xs uppercase tracking-wider">
+                <span className="bg-card px-2 text-textMuted text-xs">Or continue with</span>
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full max-w-sm mx-auto flex items-center gap-2"
-              onClick={async () => {
+            <motion.div whileTap={{ scale: 0.98 }} className="w-full">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full flex items-center justify-center gap-2 rounded-xl h-11 border-2"
+                onClick={async () => {
                 setError('');
                 try {
                   const { error } = await supabase.auth.signInWithOAuth({
@@ -264,12 +276,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     },
                   });
                   if (error) throw error;
-                } catch (err: any) {
-                  setError(err.message);
+                } catch (err) {
+                  setError(getErrorMessage(err, 'Google sign-in failed.'));
                 }
               }}
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              >
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                   fill="#4285F4"
@@ -289,9 +301,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </svg>
               Google
             </Button>
+            </motion.div>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-textMuted">
                 {isRegistering ? 'Already have an account?' : "Don't have an account?"}
                 <Button
                   type="button"
@@ -308,8 +321,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </p>
             </div>
 
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       </motion.div>
     </div>
   );
