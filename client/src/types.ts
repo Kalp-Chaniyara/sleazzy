@@ -38,4 +38,5 @@ export interface Booking {
   status: BookingStatus;
   eventType?: EventType;
   expectedAttendees?: number;
+  batchId?: string;
 }

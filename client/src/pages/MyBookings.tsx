@@ -43,9 +43,33 @@ const MyBookings: React.FC = () => {
 
   const getVenueName = (id: string) => venues.find(v => v.id === id)?.name || id;
 
+  const groupedBookings = React.useMemo(() => {
+    const groups: Record<string, Booking & { venueNames: string[] }> = {};
+
+    myBookings.forEach(booking => {
+      // Group by batchId if available, otherwise by event details
+      const key = booking.batchId || `${booking.eventName}-${booking.date}-${booking.startTime}-${booking.endTime}`;
+
+      const vName = getVenueName(booking.venueId);
+
+      if (!groups[key]) {
+        groups[key] = {
+          ...booking,
+          venueNames: [vName]
+        };
+      } else {
+        if (!groups[key].venueNames.includes(vName)) {
+          groups[key].venueNames.push(vName);
+        }
+      }
+    });
+
+    return Object.values(groups);
+  }, [myBookings, venues]);
+
   const isPastEvent = (dateStr: string) => {
     const eventDate = new Date(dateStr);
-    const today = new Date(); 
+    const today = new Date();
     return eventDate < today;
   };
 
@@ -65,7 +89,7 @@ const MyBookings: React.FC = () => {
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
@@ -103,101 +127,101 @@ const MyBookings: React.FC = () => {
         </Card>
       ) : (
         <div className="grid gap-4 sm:gap-6">
-          {myBookings.map((booking, index) => {
-          const isPast = isPastEvent(booking.date);
-          
-          return (
-            <motion.div
-              key={booking.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-            >
-              <Card 
-                className={cn(
-                  "border border-borderSoft rounded-xl flex flex-col md:flex-row gap-4 sm:gap-6 p-4 sm:p-6 hover:border-brand/30 transition-all rounded-2xl shadow-lg shadow-black/5",
-                  isPast ? '' : ''
-                )}
-              >
-                <div className="flex flex-col md:flex-row gap-4 sm:gap-6 w-full">
-                  {/* Date Box */}
-                  <div className={cn(
-                    "w-full md:w-24 h-24 rounded-2xl flex flex-col items-center justify-center shrink-0 border",
-                    isPast 
-                      ? 'bg-hoverSoft border-borderSoft text-textMuted' 
-                      : 'bg-brand/10 border-brand/20 text-brand'
-                  )}>
-                    <span className="text-xs font-bold uppercase">
-                      {new Date(booking.date).toLocaleDateString('en-US', { month: 'short' })}
-                    </span>
-                    <span className="text-2xl font-bold leading-none">
-                      {new Date(booking.date).getDate()}
-                    </span>
-                    <span className="text-xs mt-1">{new Date(booking.date).getFullYear()}</span>
-                  </div>
+          {groupedBookings.map((booking, index) => {
+            const isPast = isPastEvent(booking.date);
 
-                  {/* Details */}
-                  <div className="flex-1">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      <div>
-                        <h3 className={cn(
-                          "text-lg sm:text-xl font-bold",
-                          isPast ? 'text-textMuted' : 'text-textPrimary'
-                        )}>
-                          {booking.eventName}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-sm text-textMuted">
-                          <span className="flex items-center gap-1.5">
-                            <Clock size={16} />
-                            {booking.startTime} - {booking.endTime}
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <MapPin size={16} />
-                            {getVenueName(booking.venueId)}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <Badge 
-                        variant={
-                          booking.status === 'approved' 
-                            ? isPast ? 'secondary' : 'success'
-                            : 'pending'
-                        }
-                      >
-                        {isPast ? 'Completed' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                      </Badge>
+            return (
+              <motion.div
+                key={booking.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+              >
+                <Card
+                  className={cn(
+                    "border border-borderSoft rounded-xl flex flex-col md:flex-row gap-4 sm:gap-6 p-4 sm:p-6 hover:border-brand/30 transition-all rounded-2xl shadow-lg shadow-black/5",
+                    isPast ? '' : ''
+                  )}
+                >
+                  <div className="flex flex-col md:flex-row gap-4 sm:gap-6 w-full">
+                    {/* Date Box */}
+                    <div className={cn(
+                      "w-full md:w-24 h-24 rounded-2xl flex flex-col items-center justify-center shrink-0 border",
+                      isPast
+                        ? 'bg-hoverSoft border-borderSoft text-textMuted'
+                        : 'bg-brand/10 border-brand/20 text-brand'
+                    )}>
+                      <span className="text-xs font-bold uppercase">
+                        {new Date(booking.date).toLocaleDateString('en-US', { month: 'short' })}
+                      </span>
+                      <span className="text-2xl font-bold leading-none">
+                        {new Date(booking.date).getDate()}
+                      </span>
+                      <span className="text-xs mt-1">{new Date(booking.date).getFullYear()}</span>
                     </div>
 
-                    {/* Post Event Actions */}
-                    {isPast && booking.status === 'approved' && (
-                      <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-3">
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleFileUpload(booking.id, 'report')}
-                          className="flex items-center gap-2"
+                    {/* Details */}
+                    <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <div>
+                          <h3 className={cn(
+                            "text-lg sm:text-xl font-bold",
+                            isPast ? 'text-textMuted' : 'text-textPrimary'
+                          )}>
+                            {booking.eventName}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-sm text-textMuted">
+                            <span className="flex items-center gap-1.5">
+                              <Clock size={16} />
+                              {booking.startTime} - {booking.endTime}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <MapPin size={16} />
+                              {booking.venueNames.join(', ')}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Badge
+                          variant={
+                            booking.status === 'approved'
+                              ? isPast ? 'secondary' : 'success'
+                              : 'pending'
+                          }
                         >
-                          <Upload size={16} />
-                          Upload Event Report
-                        </Button>
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleFileUpload(booking.id, 'indent')}
-                          className="flex items-center gap-2"
-                        >
-                          <FileText size={16} />
-                          Upload Indent
-                        </Button>
+                          {isPast ? 'Completed' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </Badge>
                       </div>
-                    )}
+
+                      {/* Post Event Actions */}
+                      {isPast && booking.status === 'approved' && (
+                        <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFileUpload(booking.id, 'report')}
+                            className="flex items-center gap-2"
+                          >
+                            <Upload size={16} />
+                            Upload Event Report
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFileUpload(booking.id, 'indent')}
+                            className="flex items-center gap-2"
+                          >
+                            <FileText size={16} />
+                            Upload Indent
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            </motion.div>
-          );
-        })}
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </motion.div>

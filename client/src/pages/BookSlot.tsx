@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   AlertOctagon,
   Building2,
-  Lock
+  Lock,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { CLUBS, VENUES } from '../constants';
 import { apiRequest, type ApiClub, type ApiVenue } from '../lib/api';
@@ -77,9 +79,10 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     date: '',
     startTime: '',
     endTime: '',
-    venueId: ''
+    venueIds: [] as string[]
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [metaError, setMetaError] = useState<string | null>(null);
@@ -120,7 +123,12 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
   // Handle date selection from Calendar
   useEffect(() => {
     if (selectedDate) {
-      const dateString = selectedDate.toISOString().split('T')[0];
+      // Format as YYYY-MM-DD using local time to prevent timezone shifts
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+
       handleChange('date', dateString);
       setDatePickerOpen(false);
     }
@@ -184,26 +192,28 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
 
   // Venue Permission Logic
   useEffect(() => {
-    if (!formData.venueId) {
+    if (formData.venueIds.length === 0) {
       setWarnings(prev => ({ ...prev, venue: '', venueType: '' }));
       return;
     }
 
-    const category = getVenueCategory(formData.venueId);
-    if (category === 'B' || category === 'needs_approval') {
+    const categories = formData.venueIds.map(id => getVenueCategory(id));
+    const hasCategoryB = categories.some(c => c === 'B' || c === 'needs_approval');
+
+    if (hasCategoryB) {
       setWarnings(prev => ({
         ...prev,
-        venue: 'Category B Venue: Requires Sleazzy Convener & Faculty Approval.',
+        venue: 'Includes Category B Venue(s): Requires Sleazzy Convener & Faculty Approval.',
         venueType: 'warning'
       }));
     } else {
       setWarnings(prev => ({
         ...prev,
-        venue: 'Category A Venue: Direct booking available (Subject to vacancy).',
+        venue: 'Category A Venues: Direct booking available (Subject to vacancy).',
         venueType: 'success'
       }));
     }
-  }, [formData.venueId]);
+  }, [formData.venueIds]);
 
   // Operating Hours Logic
   useEffect(() => {
@@ -258,6 +268,10 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
           clubId: clubs.find(c => c.name === formData.clubName)?.id || '',
         });
 
+        if (formData.venueIds.length > 0) {
+          query.append('venueIds', formData.venueIds.join(','));
+        }
+
         const { hasConflict, message } = await apiRequest<{ hasConflict: boolean; message: string }>(
           `/api/bookings/check-conflict?${query.toString()}`,
           { auth: true }
@@ -275,10 +289,20 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     };
 
     checkConflicts();
-  }, [formData.date, formData.startTime, formData.endTime, formData.clubName, formData.venueId]);
+  }, [formData.date, formData.startTime, formData.endTime, formData.clubName, formData.venueIds]);
 
-  const handleChange = (name: string, value: string) => {
+  const handleChange = (name: string, value: any) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleVenueToggle = (venueId: string) => {
+    setFormData(prev => {
+      const current = prev.venueIds;
+      const updated = current.includes(venueId)
+        ? current.filter(id => id !== venueId)
+        : [...current, venueId];
+      return { ...prev, venueIds: updated };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -289,12 +313,20 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
       return;
     }
 
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const selectedClub = clubs.find(c => c.name === formData.clubName);
       if (!selectedClub) throw new Error("Invalid club selected");
 
       const startDateTime = new Date(`${formData.date}T${formData.startTime}:00`);
       const endDateTime = new Date(`${formData.date}T${formData.endTime}:00`);
+
+      if (formData.venueIds.length === 0) {
+        toastError('Please select at least one venue.');
+        return;
+      }
 
       await apiRequest('/api/bookings', {
         method: 'POST',
@@ -312,13 +344,15 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     } catch (error) {
       console.error('Failed to submit booking:', error);
       toastError(error, 'Failed to submit booking. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const hasErrors = !!warnings.timeline || !!warnings.conflict || !!warnings.hours;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -462,12 +496,14 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                         <div className="relative">
                           <CalendarIcon size={18} className="absolute left-3 top-2.5 text-textMuted z-10 pointer-events-none" />
                           <Button
+                            type="button"
                             variant="outline"
                             className={cn(
-                              "w-full justify-start text-left font-normal pl-10",
+                              "w-full justify-start text-left font-normal pl-10 border-borderSoft/80 dark:border-white/10 bg-white/90 dark:bg-white/5 backdrop-blur-sm",
                               !formData.date && "text-textMuted",
                               warnings.timeline && "border-error"
                             )}
+                            onClick={() => setDatePickerOpen(true)}
                           >
                             {formData.date ? (
                               new Date(formData.date).toLocaleDateString('en-US', {
@@ -595,24 +631,82 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-textMuted uppercase tracking-wider">Venue Selection</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="venueId">Preferred Venue</Label>
-                  <div className="relative">
-                    <MapPin size={18} className="absolute left-3 top-2.5 text-textMuted z-10 pointer-events-none" />
-                    <Select value={formData.venueId} onValueChange={(v) => handleChange('venueId', v)}>
-                      <SelectTrigger id="venueId" className="w-full pl-10">
-                        <SelectValue placeholder="Select a Venue..." />
-                      </SelectTrigger>
-                      <SelectContent>
+                  <Label>Preferred Venues</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between pl-3 pr-3 text-left font-normal border-borderSoft/80 dark:border-white/10 bg-white/90 dark:bg-white/5 backdrop-blur-sm",
+                          formData.venueIds.length === 0 && "text-textMuted"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <MapPin size={18} className="text-textMuted shrink-0" />
+                          <span className="truncate">
+                            {formData.venueIds.length > 0
+                              ? `${formData.venueIds.length} venue(s) selected`
+                              : "Select venues..."}
+                          </span>
+                        </div>
+                        <div className="opacity-50 shrink-0">
+                          <ChevronDown className="h-4 w-4" /> {/* Need to import ChevronDown */}
+                        </div>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <div className="p-2 max-h-[300px] overflow-y-auto space-y-2">
                         <div className="px-2 py-1.5 text-xs font-semibold text-textMuted">Category A (General)</div>
                         {venues.filter(v => normalizeVenueCategory(v.category) === 'A').map(v => (
-                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                          <div
+                            key={v.id}
+                            className="flex items-center space-x-2 px-2 py-1.5 hover:bg-hoverSoft rounded-sm cursor-pointer"
+                            onClick={() => handleVenueToggle(v.id)}
+                          >
+                            <div className={cn(
+                              "h-4 w-4 border border-primary rounded-sm flex items-center justify-center",
+                              formData.venueIds.includes(v.id) ? "bg-primary text-white" : "bg-transparent"
+                            )}>
+                              {formData.venueIds.includes(v.id) && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="text-sm">{v.name}</span>
+                          </div>
                         ))}
+
                         <div className="px-2 py-1.5 text-xs font-semibold text-textMuted mt-2">Category B (Restricted)</div>
                         {venues.filter(v => normalizeVenueCategory(v.category) === 'B').map(v => (
-                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                          <div
+                            key={v.id}
+                            className="flex items-center space-x-2 px-2 py-1.5 hover:bg-hoverSoft rounded-sm cursor-pointer"
+                            onClick={() => handleVenueToggle(v.id)}
+                          >
+                            <div className={cn(
+                              "h-4 w-4 border border-primary rounded-sm flex items-center justify-center",
+                              formData.venueIds.includes(v.id) ? "bg-primary text-white" : "bg-transparent"
+                            )}>
+                              {formData.venueIds.includes(v.id) && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="text-sm">{v.name}</span>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.venueIds.map(id => {
+                      const v = venues.find(v => v.id === id);
+                      if (!v) return null;
+                      return (
+                        <Badge key={id} variant="secondary" className="flex items-center gap-1">
+                          {v.name}
+                          <button type="button" onClick={() => handleVenueToggle(id)} className="ml-1 hover:text-error">
+                            &times;
+                          </button>
+                        </Badge>
+                      );
+                    })}
                   </div>
 
                   {warnings.venue && (
@@ -635,6 +729,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                     variant="outline"
                     onClick={() => window.history.back()}
                     className="w-full rounded-xl h-11"
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </Button>
@@ -642,11 +737,11 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                 <motion.div whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
                   <Button
                     type="submit"
-                    disabled={hasErrors}
+                    disabled={hasErrors || isSubmitting}
                     className="w-full rounded-xl h-11 shadow-lg shadow-primary/20"
                   >
-                    Submit Request
-                    <CheckCircle2 size={18} />
+                    {isSubmitting ? 'Submitting...' : 'Submit Request'}
+                    {!isSubmitting && <CheckCircle2 size={18} />}
                   </Button>
                 </motion.div>
               </div>

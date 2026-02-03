@@ -109,6 +109,7 @@ export type ApiBooking = {
   venues?: { name?: string | null } | null;
   event_type?: string;
   expected_attendees?: number;
+  batch_id?: string;
 };
 
 export const mapBooking = (booking: ApiBooking) => {
@@ -125,7 +126,8 @@ export const mapBooking = (booking: ApiBooking) => {
     startTime: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     endTime: end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     status: booking.status,
-    eventType: booking.event_type as any, // Cast to EventType in usage if strictly needed, or import EventType
+    eventType: booking.event_type as any,
     expectedAttendees: booking.expected_attendees,
+    batchId: booking.batch_id,
   };
 };
