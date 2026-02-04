@@ -1,11 +1,13 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../supabaseClient';
 
+import { randomUUID } from 'crypto';
+
 type EventType = 'co_curricular' | 'open_all' | 'closed_club';
 
 type BookingRequestBody = {
   clubId: string;
-  venueId: string;
+  venueIds: string[];
   eventType: EventType;
   eventName: string;
   startTime: string;
@@ -24,41 +26,35 @@ const isValidDate = (value: string) => {
   return !Number.isNaN(date.getTime());
 };
 
-const performGroupConflictCheck = async (
-  clubId: string,
+
+
+const performVenueConflictCheck = async (
+  venueIds: string[],
   startTime: string,
   endTime: string
 ) => {
-  // 1. Get the group_category of the requesting club
-  const { data: club, error: clubError } = await supabase
-    .from('clubs')
-    .select('group_category')
-    .eq('id', clubId)
-    .single();
+  if (!venueIds || venueIds.length === 0) return { conflict: false, message: '' };
 
-  if (clubError || !club) {
-    throw new Error('Club not found for conflict check');
-  }
-
-  // 2. Check for overlapping bookings from clubs in the same group
-  // We need to find if ANY booking exists where:
-  // - Status is NOT rejected
-  // - Time overlaps: (StartA < EndB) and (EndA > StartB)
-  // - Club's group_category matches
-  const { data: conflicts, error: conflictError } = await supabase
+  // Check for ANY booking that overlaps with the requested time for ANY of the requested venues
+  const { data: conflicts, error } = await supabase
     .from('bookings')
-    .select('id, clubs!inner(group_category)')
+    .select('venue_id, venues(name)')
     .neq('status', 'rejected')
+    .in('venue_id', venueIds)
     .lt('start_time', endTime)
-    .gt('end_time', startTime)
-    .eq('clubs.group_category', club.group_category);
+    .gt('end_time', startTime);
 
-  if (conflictError) {
-    throw new Error(conflictError.message);
+  if (error) {
+    throw new Error(error.message);
   }
 
   if (conflicts && conflicts.length > 0) {
-    return { conflict: true, message: `Conflict: Another club in group '${club.group_category}' has a booking during this time.` };
+    // Get unique venue names that have conflicts
+    const conflictingVenueNames = [...new Set(conflicts.map((c: any) => c.venues?.name || 'Unknown Venue'))];
+    return {
+      conflict: true,
+      message: `Conflict: The following venues are already booked during this time: ${conflictingVenueNames.join(', ')}`
+    };
   }
 
   return { conflict: false, message: '' };
@@ -67,16 +63,16 @@ const performGroupConflictCheck = async (
 export const createBooking = async (req: Request, res: Response) => {
   const {
     clubId,
-    venueId,
+    venueIds,
     eventType,
     eventName,
     startTime,
     endTime,
     expectedAttendees,
-  } = req.body as Partial<BookingRequestBody>;
+  } = req.body as Partial<BookingRequestBody & { venueIds: string[] }>;
 
-  if (!clubId || !venueId || !eventType || !eventName || !startTime || !endTime) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!clubId || !venueIds || !Array.isArray(venueIds) || venueIds.length === 0 || !eventType || !eventName || !startTime || !endTime) {
+    return res.status(400).json({ error: 'Missing required fields or invalid venueIds' });
   }
 
   if (!Object.keys(MIN_DAYS_BY_EVENT).includes(eventType)) {
@@ -101,14 +97,14 @@ export const createBooking = async (req: Request, res: Response) => {
     });
   }
 
-  const { data: venue, error: venueError } = await supabase
+  // 1. Validate all venues exist
+  const { data: venues, error: venueError } = await supabase
     .from('venues')
-    .select('id, category, capacity')
-    .eq('id', venueId)
-    .single();
+    .select('id, category, capacity, name')
+    .in('id', venueIds);
 
-  if (venueError || !venue) {
-    return res.status(404).json({ error: 'Venue not found' });
+  if (venueError || !venues || venues.length !== venueIds.length) {
+    return res.status(404).json({ error: 'One or more venues not found' });
   }
 
   const { data: club, error: clubError } = await supabase
@@ -121,72 +117,101 @@ export const createBooking = async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Club not found' });
   }
 
-  // REPLACED RPC CALL WITH TS LOGIC
   try {
-    const { conflict, message } = await performGroupConflictCheck(clubId, startTime, endTime);
-    if (conflict) {
-      return res.status(409).json({ error: message });
+
+
+    // 3. Check Venue Conflicts (Explicit)
+    const { conflict: venueConflict, message: venueMessage } = await performVenueConflictCheck(venueIds, startTime, endTime);
+    if (venueConflict) {
+      return res.status(409).json({ error: venueMessage });
     }
+
   } catch (err) {
     return res.status(500).json({ error: (err as Error).message });
   }
 
-  if (
-    typeof expectedAttendees === 'number' &&
-    typeof venue.capacity === 'number' &&
-    expectedAttendees > venue.capacity
-  ) {
-    return res.status(400).json({
-      error: `Expected attendees exceed venue capacity of ${venue.capacity}`,
-    });
+  // 4. Validate Capacity
+  for (const venue of venues) {
+    if (
+      typeof expectedAttendees === 'number' &&
+      typeof venue.capacity === 'number' &&
+      expectedAttendees > venue.capacity
+    ) {
+      return res.status(400).json({
+        error: `Expected attendees (${expectedAttendees}) exceed capacity of ${venue.name} (${venue.capacity})`,
+      });
+    }
   }
 
-  let status: 'approved' | 'pending' = 'pending';
-  if (venue.category === 'auto_approval') {
-    status = 'approved';
-  } else if (venue.category === 'needs_approval') {
-    status = 'pending';
-  } else {
-    return res.status(400).json({ error: 'Invalid venue category' });
+  const createdBookings = [];
+  const batchId = randomUUID();
+
+  for (const venue of venues) {
+    let status: 'approved' | 'pending' = 'pending';
+    if (venue.category === 'auto_approval') {
+      status = 'approved';
+    } else if (venue.category === 'needs_approval') {
+      status = 'pending';
+    }
+
+    const { data: booking, error: insertError } = await supabase
+      .from('bookings')
+      .insert({
+        club_id: clubId,
+        venue_id: venue.id,
+        event_name: eventName,
+        start_time: startTime,
+        end_time: endTime,
+        status,
+        user_id: req.user?.id,
+        event_type: eventType,
+        expected_attendees: expectedAttendees,
+        batch_id: batchId
+      })
+      .select('*')
+      .single();
+
+    if (insertError) {
+      console.error(`Failed to book venue ${venue.name}:`, insertError);
+      return res.status(500).json({ error: `Failed to book venue ${venue.name}. Partial success may have occurred.` });
+    }
+    createdBookings.push(booking);
   }
 
-  const { data: booking, error: insertError } = await supabase
-    .from('bookings')
-    .insert({
-      club_id: clubId,
-      venue_id: venueId,
-      event_name: eventName,
-      start_time: startTime,
-      end_time: endTime,
-      status,
-      user_id: req.user?.id,
-      event_type: eventType,
-      expected_attendees: expectedAttendees,
-    })
-    .select('*')
-    .single();
-
-  if (insertError) {
-    return res.status(500).json({ error: insertError.message });
-  }
-
-  return res.status(201).json(booking);
+  return res.status(201).json(createdBookings);
 };
 
 export const checkConflict = async (req: Request, res: Response) => {
-  const { clubId, startTime, endTime } = req.query as {
-    clubId: string;
-    startTime: string;
-    endTime: string;
-  };
+  const clubId = (req.body.clubId || req.query.clubId) as string;
+  const startTime = (req.body.startTime || req.query.startTime) as string;
+  const endTime = (req.body.endTime || req.query.endTime) as string;
+  const venueIdsInput = req.body.venueIds || req.query.venueIds;
+
+  // Support venueIds from query string if comma separated
+  let finalVenueIds: string[] = [];
+  if (venueIdsInput) {
+    if (Array.isArray(venueIdsInput)) {
+      finalVenueIds = venueIdsInput as string[];
+    } else if (typeof venueIdsInput === 'string') {
+      finalVenueIds = venueIdsInput.split(',');
+    }
+  }
 
   if (!clubId || !startTime || !endTime) {
-    return res.status(400).json({ error: 'Missing required query parameters' });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    const { conflict, message } = await performGroupConflictCheck(clubId, startTime, endTime);
-    return res.json({ hasConflict: conflict, message });
+
+
+    if (finalVenueIds.length > 0) {
+      const { conflict: venueConflict, message: venueMessage } = await performVenueConflictCheck(finalVenueIds, startTime, endTime);
+      if (venueConflict) {
+        return res.json({ hasConflict: true, message: venueMessage });
+      }
+    }
+
+    return res.json({ hasConflict: false, message: '' });
   } catch (err) {
     return res.status(500).json({ error: (err as Error).message });
   }
